@@ -58,6 +58,7 @@ Each seed hit is a rising edge (LM339 output idles low). Hits within `lockout` Â
 | `runs 8` | 8-run tower (default 9) |
 | `lockout 1000` | Re-trigger lockout in Âµs |
 | `tune` | Toggle tune mode: prints run 1's raw peak voltage (fit JP1) |
+| `scan` | Toggle the pin finder: prints any Pico pin that changes (to check wiring) |
 | `quiet` | Toggle the per-second printout |
 | `stats` | CAN statistics |
 

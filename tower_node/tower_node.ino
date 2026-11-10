@@ -16,6 +16,8 @@
 //   tune        -> toggle tune mode: run 1 raw signal on GP26 (JP1 fitted)
 //   quiet       -> toggle the once-a-second printout
 //   stats       -> CAN statistics
+//   scan        -> toggle pin finder: prints any GPIO that changes state
+//                  (poke the circuit and see which Pico pin it reaches)
 //   help
 
 // This needs Earle Philhower's Pico core. The official "Arduino Mbed OS RP2040"
@@ -74,6 +76,28 @@ ACAN2040 *can = nullptr;
 
 // ---------------- state ----------------
 bool tuneMode = false;
+bool scanMode = false;
+uint32_t scanLast = 0;
+// GPIOs the pin finder watches: everything on the header except CAN (10, 11).
+const uint8_t SCAN_PINS[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17,
+                             18, 19, 20, 21, 22, 26, 27, 28};
+// Pico physical pin number for each GPIO (index = GPIO), for the printout.
+const uint8_t PHYS_PIN[29] = {1, 2, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 17, 19, 20,
+                              21, 22, 24, 25, 26, 27, 29, 0, 0, 0, 31, 32, 34};
+
+uint32_t readScanPins() {
+  uint32_t v = 0;
+  for (uint8_t p : SCAN_PINS) if (digitalRead(p)) v |= (1UL << p);
+  return v;
+}
+
+void printScanState(uint32_t v) {
+  Serial.print("HIGH now:");
+  bool any = false;
+  for (uint8_t p : SCAN_PINS)
+    if (v & (1UL << p)) { Serial.printf(" GP%u(pin %u)", p, PHYS_PIN[p]); any = true; }
+  Serial.println(any ? "" : " none");
+}
 bool printOn = true;
 uint8_t seq = 0;
 uint32_t lastReportMs = 0;
@@ -108,7 +132,7 @@ void printConfig() {
 }
 
 void printHelp() {
-  Serial.println("Commands: id <1-8>, runs <8|9>, lockout <us>, tune, quiet, stats, help");
+  Serial.println("Commands: id <1-8>, runs <8|9>, lockout <us>, tune, scan, quiet, stats, help");
 }
 
 void handleCommand(String line) {
@@ -129,6 +153,20 @@ void handleCommand(String line) {
     tuneMode = !tuneMode;
     Serial.println(tuneMode ? "TUNE MODE on: fit JP1, run 1 raw signal on GP26"
                             : "TUNE MODE off");
+  } else if (cmd == "scan") {
+    scanMode = !scanMode;
+    if (scanMode) {
+      for (uint8_t p : SCAN_PINS) {
+        bool isRun = false;
+        for (uint8_t i = 0; i < SBM_MAX_RUNS; i++) if (RUN_PINS[i] == p) isRun = true;
+        if (!isRun) pinMode(p, INPUT);   // read-only, safe on anything 0-3.3 V
+      }
+      scanLast = readScanPins();
+      Serial.println("PIN FINDER on. Touch 3.3V to LM339 pin 5 (or tap the piezo) and watch.");
+      printScanState(scanLast);
+    } else {
+      Serial.println("PIN FINDER off");
+    }
   } else if (cmd == "quiet") {
     printOn = !printOn;
   } else if (cmd == "stats") {
@@ -218,6 +256,19 @@ void loop() {
     } else if (cmdLine.length() < 40) {
       cmdLine += c;
     }
+  }
+
+  if (scanMode) {
+    uint32_t v = readScanPins();
+    uint32_t changed = v ^ scanLast;
+    if (changed) {
+      for (uint8_t p : SCAN_PINS)
+        if (changed & (1UL << p))
+          Serial.printf("GP%u (Pico pin %u) went %s\n", p, PHYS_PIN[p], (v & (1UL << p)) ? "HIGH" : "LOW");
+      scanLast = v;
+      delay(20);   // don't flood on a noisy edge
+    }
+    return;   // nothing else while finding pins
   }
 
   uint32_t now = millis();
