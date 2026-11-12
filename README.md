@@ -43,6 +43,11 @@ Board: `tower_node` rev B (KiCad). Pins:
 
 Each seed hit is a rising edge (LM339 output idles low). Hits within `lockout` µs on the same run count once.
 
+**Per-run input (bench-tested):** piezo → **47k across the piezo** (was 1M in the KiCad rev B BOM) → 1k series → clamp diodes → LM339 IN+ (pin 5/7/9/11).
+The 47k blocks slow signals below about 170 Hz, so shaking or flexing the hose doesn't count but sharp seed impacts do.
+If shaking still counts on the machine, drop it to 10k (blocks below about 800 Hz) and lower the threshold a little.
+Threshold (RV1 wiper) goes to the LM339 − inputs (pin 4/6/8/10). The trimpot's far end must go straight to GND, not through a capacitor.
+
 **Setup (Arduino IDE)**
 1. *File → Preferences → Additional boards URLs*:
    `https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json`
