@@ -30,6 +30,11 @@ IPAddress GATEWAY(192, 168, 5, 1);
 IPAddress SUBNET(255, 255, 255, 0);
 const uint16_t AOG_MODULE_PORT = 8888;   // AgIO broadcasts to modules here
 
+// ---------------- board version ----------------
+// 1 = ESP32-POE with the ESP32-WROVER module (module says WROVER; has PSRAM).
+// 0 = older ESP32-POE with the ESP32-WROOM module.
+#define OLIMEX_WROVER 1
+
 // ---------------- pins (Olimex ESP32-POE) ----------------
 const gpio_num_t CAN_TX_PIN = GPIO_NUM_4;   // UEXT pin 3 -> SN65HVD230 CTX
 const gpio_num_t CAN_RX_PIN = GPIO_NUM_36;  // UEXT pin 4 -> SN65HVD230 CRX
@@ -433,8 +438,14 @@ void setup() {
   parseLayout();
 
   Network.onEvent(onNetEvent);
-  // Olimex ESP32-POE: LAN8720, PHY addr 0, MDC 23, MDIO 18, power 12, clock out on GPIO17
+  // Olimex ESP32-POE: LAN8720, PHY addr 0, MDC 23, MDIO 18, power 12.
+  // Ethernet clock is GPIO0 on WROVER boards (GPIO16/17 are used by PSRAM),
+  // GPIO17 on the older WROOM boards.
+#if OLIMEX_WROVER
+  ETH.begin(ETH_PHY_LAN8720, 0, 23, 18, 12, ETH_CLOCK_GPIO0_OUT);
+#else
   ETH.begin(ETH_PHY_LAN8720, 0, 23, 18, 12, ETH_CLOCK_GPIO17_OUT);
+#endif
   ETH.config(MY_IP, GATEWAY, SUBNET);
 
   if (udp.listen(AOG_MODULE_PORT)) {
