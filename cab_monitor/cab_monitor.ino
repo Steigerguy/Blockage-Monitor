@@ -39,7 +39,13 @@ const uint16_t AOG_MODULE_PORT = 8888;   // AgIO broadcasts to modules here
 // ---------------- pins (Olimex ESP32-POE) ----------------
 const gpio_num_t CAN_TX_PIN = GPIO_NUM_4;   // UEXT pin 3 -> SN65HVD230 CTX
 const gpio_num_t CAN_RX_PIN = GPIO_NUM_36;  // UEXT pin 4 -> SN65HVD230 CRX
-const int BUZZER_PIN = 32;                  // -> transistor -> 12 V buzzer
+const int BUZZER_PIN = 32;                  // -> 1k -> transistor -> buzzer
+
+// Buzzer type:
+// 0 = ACTIVE buzzer (beeps by itself on DC, e.g. 12 V "alarm" buzzer)
+// 1 = PASSIVE buzzer (needs a tone, e.g. Soberton WT-1205 5 V, 2400 Hz)
+#define BUZZER_PASSIVE 1
+const uint32_t BUZZER_TONE_HZ = 2400;
 
 // ---------------- settings (saved in flash) ----------------
 struct Settings {
@@ -303,11 +309,23 @@ void evaluate() {
   alarmOn = active && (anyBlocked || anyOffline);
 }
 
+bool buzzerIsOn = false;
+
+void buzzer(bool on) {
+  if (on == buzzerIsOn) return;
+  buzzerIsOn = on;
+#if BUZZER_PASSIVE
+  ledcWrite(BUZZER_PIN, on ? 128 : 0);    // 50% square wave at the tone, or silent
+#else
+  digitalWrite(BUZZER_PIN, on ? HIGH : LOW);
+#endif
+}
+
 void driveBuzzer() {
   uint32_t now = millis();
   bool muted = (int32_t)(muteUntilMs - now) > 0;
   bool on = alarmOn && !muted && ((now / 300) % 2 == 0);   // beep-beep
-  digitalWrite(BUZZER_PIN, on ? HIGH : LOW);
+  buzzer(on);
 }
 
 // ======================================================================
@@ -464,8 +482,13 @@ void onNetEvent(arduino_event_id_t event) {
 
 void setup() {
   Serial.begin(115200);
+#if BUZZER_PASSIVE
+  ledcAttach(BUZZER_PIN, BUZZER_TONE_HZ, 8);   // 8-bit duty, 2400 Hz
+  ledcWrite(BUZZER_PIN, 0);
+#else
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW);
+#endif
   loadSettings();
   parseLayout();
 
@@ -499,7 +522,7 @@ void setup() {
   server.begin();
 
   // short beep so you know it booted
-  digitalWrite(BUZZER_PIN, HIGH); delay(150); digitalWrite(BUZZER_PIN, LOW);
+  buzzer(true); delay(150); buzzer(false);
   Serial.print("Seed blockage monitor cab unit at http://");
   Serial.println(MY_IP);
 }
