@@ -89,7 +89,9 @@ uint32_t onSinceMs = 0;
 bool alarmOn = false;
 uint32_t muteUntilMs = 0;
 uint32_t lastEvalMs = 0;
-bool ethUp = false;
+bool ethUp = false;            // has its IP address
+bool ethStarted = false;       // Ethernet chip found and started
+volatile bool ethLink = false; // cable link up
 
 AsyncUDP udp;
 WebServer server(80);
@@ -324,7 +326,7 @@ void handleData() {
   j += ",\"alarm\":"; j += alarmOn ? 1 : 0;
   int muteLeft = (int32_t)(muteUntilMs - now) > 0 ? (muteUntilMs - now) / 1000 : 0;
   j += ",\"mute\":"; j += muteLeft;
-  j += ",\"eth\":"; j += ethUp ? 1 : 0;
+  j += ",\"eth\":"; j += !ethStarted ? 0 : (!ethLink ? 1 : ((ethUp || ETH.localIP() == MY_IP) ? 3 : 2));
   j += ",\"t\":[";
   for (uint8_t t = 1; t <= cfg.towers; t++) {
     Tower &T = towers[t];
@@ -426,8 +428,32 @@ void handleMute() {
 
 // ======================================================================
 void onNetEvent(arduino_event_id_t event) {
-  if (event == ARDUINO_EVENT_ETH_GOT_IP || event == ARDUINO_EVENT_ETH_CONNECTED) ethUp = true;
-  if (event == ARDUINO_EVENT_ETH_DISCONNECTED || event == ARDUINO_EVENT_ETH_STOP) ethUp = false;
+  switch (event) {
+    case ARDUINO_EVENT_ETH_START:
+      ethStarted = true;
+      Serial.println("ETH: started (Ethernet chip found)");
+      break;
+    case ARDUINO_EVENT_ETH_CONNECTED:
+      ethLink = true;
+      Serial.printf("ETH: cable link UP, %d Mbps %s duplex\n", ETH.linkSpeed(),
+                    ETH.fullDuplex() ? "full" : "half");
+      break;
+    case ARDUINO_EVENT_ETH_GOT_IP:
+      ethUp = true;
+      Serial.print("ETH: address ");
+      Serial.println(ETH.localIP());
+      break;
+    case ARDUINO_EVENT_ETH_DISCONNECTED:
+      ethLink = false; ethUp = false;
+      Serial.println("ETH: cable link DOWN");
+      break;
+    case ARDUINO_EVENT_ETH_STOP:
+      ethStarted = false; ethLink = false; ethUp = false;
+      Serial.println("ETH: stopped");
+      break;
+    default:
+      break;
+  }
 }
 
 void setup() {
@@ -446,7 +472,10 @@ void setup() {
 #else
   ETH.begin(ETH_PHY_LAN8720, 0, 23, 18, 12, ETH_CLOCK_GPIO17_OUT);
 #endif
-  ETH.config(MY_IP, GATEWAY, SUBNET);
+  if (!ethStarted) delay(200);   // let the start event arrive
+  bool cfgOk = ETH.config(MY_IP, GATEWAY, SUBNET);
+  Serial.printf("ETH: begin %s, static IP %s %s\n", ethStarted ? "OK" : "FAILED (no Ethernet chip found)",
+                MY_IP.toString().c_str(), cfgOk ? "set" : "NOT set");
 
   if (udp.listen(AOG_MODULE_PORT)) {
     udp.onPacket([](AsyncUDPPacket &packet) { onAogPacket(packet); });

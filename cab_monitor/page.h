@@ -61,6 +61,7 @@ summary{font-weight:700;cursor:pointer}
   <span id="st" class="pill">Connecting...</span>
   <span id="aog" class="pill">AgOpenGPS</span>
   <span id="spd" class="pill">-- km/h</span>
+  <span id="eth" class="pill">Ethernet</span>
   <span class="sp"></span>
   <span id="ranks"></span>
   <button id="snd">Sound off</button>
@@ -143,6 +144,8 @@ function render(d){
   $('aog').textContent='AgOpenGPS '+(d.aog?(d.sec?'section ON':'section off'):'not seen');
   $('aog').className='pill'+(d.aog?(d.sec?' ok':''):' low');
   $('spd').textContent=d.spd+' km/h';
+  const E=[['Ethernet: no chip','bad'],['Ethernet: no cable link','low'],['Ethernet: link, no IP','low'],['Ethernet OK 192.168.5.140','ok']][d.eth]||['Ethernet ?',''];
+  $('eth').textContent=E[0]; $('eth').className='pill '+E[1];
   $('mute').textContent=d.mute?('Muted '+d.mute+'s'):'Mute 2 min';
   $('mute').classList.toggle('on',d.mute>0);
   const bad=[], off=[];
