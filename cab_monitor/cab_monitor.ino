@@ -31,9 +31,10 @@ IPAddress SUBNET(255, 255, 255, 0);
 const uint16_t AOG_MODULE_PORT = 8888;   // AgIO broadcasts to modules here
 
 // ---------------- board version ----------------
-// 1 = ESP32-POE with the ESP32-WROVER module (module says WROVER; has PSRAM).
-// 0 = older ESP32-POE with the ESP32-WROOM module.
-#define OLIMEX_WROVER 1
+// Read the label on the metal module itself (not the board printing under it):
+// 0 = "ESP32-WROOM-32E" module  -> Tools > PSRAM: Disabled   (this unit)
+// 1 = "ESP32-WROVER-E" module   -> Tools > PSRAM: Enabled
+#define OLIMEX_WROVER 0
 
 // ---------------- pins (Olimex ESP32-POE) ----------------
 const gpio_num_t CAN_TX_PIN = GPIO_NUM_4;   // UEXT pin 3 -> SN65HVD230 CTX
