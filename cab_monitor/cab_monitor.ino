@@ -55,6 +55,7 @@ struct Settings {
   // first row = front. 0 = empty spot.
   String layout = "1,2,3,4/5,6,7,8";
   uint8_t rowOff = 0;       // bit per layout row (bit 0 = front rank) switched off
+  bool imperial = false;    // page shows mph instead of km/h
   bool wifiOn = true;       // Wi-Fi access point for a second screen
   String ssid = "SeedMonitor";
   String wifiPass = "seeder123";   // 8+ characters
@@ -112,6 +113,7 @@ void loadSettings() {
   prefs.getBytes("ignore", cfg.ignore, sizeof(cfg.ignore));
   cfg.layout = prefs.getString("layout", cfg.layout);
   cfg.rowOff = prefs.getUChar("rowoff", 0);
+  cfg.imperial = prefs.getBool("imp", cfg.imperial);
   cfg.wifiOn = prefs.getBool("wifi", cfg.wifiOn);
   cfg.ssid = prefs.getString("ssid", cfg.ssid);
   cfg.wifiPass = prefs.getString("wpass", cfg.wifiPass);
@@ -131,6 +133,7 @@ void saveSettings() {
   prefs.putBytes("ignore", cfg.ignore, sizeof(cfg.ignore));
   prefs.putString("layout", cfg.layout);
   prefs.putUChar("rowoff", cfg.rowOff);
+  prefs.putBool("imp", cfg.imperial);
   prefs.putBool("wifi", cfg.wifiOn);
   prefs.putString("ssid", cfg.ssid);
   prefs.putString("wpass", cfg.wifiPass);
@@ -353,6 +356,7 @@ void handleData() {
   j += ",\"always\":"; j += cfg.always ? 1 : 0;
   j += ",\"layout\":\""; j += cfg.layout; j += '"';
   j += ",\"rowoff\":"; j += cfg.rowOff;
+  j += ",\"imp\":"; j += cfg.imperial ? 1 : 0;
   j += ",\"wifi\":"; j += cfg.wifiOn ? 1 : 0;
   j += ",\"ssid\":\""; j += cfg.ssid; j += '"';
   j += "}}";
@@ -373,6 +377,7 @@ void handleSet() {
   cfg.startDelay = argOr("delay", cfg.startDelay, 0, 60);
   cfg.minAvg = argOr("min", cfg.minAvg, 0, 10000);
   cfg.always = argOr("always", cfg.always, 0, 1);
+  cfg.imperial = argOr("imp", cfg.imperial, 0, 1);
   if (server.hasArg("layout")) {
     // keep only digits, commas and slashes (it goes back out in JSON)
     String in = server.arg("layout"), out;

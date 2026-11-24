@@ -79,6 +79,8 @@ summary{font-weight:700;cursor:pointer}
  <label>Start delay after section on (s) <input id="delay" type="number" min="0" max="60"></label>
  <label>Tower min avg hits/s <input id="min" type="number" min="0" max="10000"></label>
  <label>Map layout <input id="layout" type="text" style="width:150px" placeholder="1,2,3,4/5,6,7,8"></label>
+ <label>Units <select id="imp" style="font:inherit;padding:4px;background:#0c0f12;color:var(--text);border:1px solid var(--line);border-radius:6px">
+   <option value="0">Metric (km/h)</option><option value="1">Imperial (mph)</option></select></label>
  <label>Wi-Fi for 2nd screen <input id="wifi" type="checkbox" style="width:auto"></label>
  <label>Wi-Fi name <input id="ssid" type="text" maxlength="31" style="width:150px"></label>
  <label>Wi-Fi password <input id="pass" type="text" maxlength="63" style="width:150px" placeholder="unchanged (8+ chars)"></label>
@@ -99,7 +101,7 @@ $('snd').onclick=()=>{ if(!ac) ac=new (window.AudioContext||window.webkitAudioCo
   ac.resume(); soundOn=!soundOn; $('snd').textContent=soundOn?'Sound on':'Sound off'; $('snd').classList.toggle('on',soundOn); };
 $('mute').onclick=()=>fetch('/mute?s='+(mute?0:120));
 $('save').onclick=()=>{ const q=['towers','block','warn','secs','delay','min'].map(k=>k+'='+$(k).value);
-  q.push('always='+($('always').checked?1:0)); q.push('layout='+encodeURIComponent($('layout').value));
+  q.push('always='+($('always').checked?1:0)); q.push('imp='+$('imp').value); q.push('layout='+encodeURIComponent($('layout').value));
   q.push('wifi='+($('wifi').checked?1:0)); q.push('ssid='+encodeURIComponent($('ssid').value));
   const pw=$('pass').value; if(pw){ if(pw.length<8){alert('Wi-Fi password needs 8+ characters');return;} q.push('pass='+encodeURIComponent(pw)); }
   $('pass').value=''; fetch('/set?'+q.join('&')).then(()=>{cfgLoaded=false;}); };
@@ -143,7 +145,7 @@ function render(d){
   else {st.textContent='Monitoring';st.className='pill ok';}
   $('aog').textContent='AgOpenGPS '+(d.aog?(d.sec?'section ON':'section off'):'not seen');
   $('aog').className='pill'+(d.aog?(d.sec?' ok':''):' low');
-  $('spd').textContent=d.spd+' km/h';
+  $('spd').textContent=d.cfg.imp?((d.spd*0.621371).toFixed(1)+' mph'):(d.spd+' km/h');
   const E=[['Ethernet: no chip','bad'],['Ethernet: no cable link','low'],['Ethernet: link, no IP','low'],['Ethernet OK 192.168.5.140','ok']][d.eth]||['Ethernet ?',''];
   $('eth').textContent=E[0]; $('eth').className='pill '+E[1];
   $('mute').textContent=d.mute?('Muted '+d.mute+'s'):'Mute 2 min';
@@ -167,7 +169,7 @@ function render(d){
   if(d.act&&off.length) parts.push('NO SIGNAL: tower '+off.join(', '));
   b.textContent=parts.join('  |  '); b.classList.toggle('show',parts.length>0);
   if(!cfgLoaded){ for(const k of ['towers','block','warn','secs','delay','min']) $(k).value=d.cfg[k];
-    $('always').checked=!!d.cfg.always; $('layout').value=d.cfg.layout||''; $('wifi').checked=!!d.cfg.wifi; $('ssid').value=d.cfg.ssid||'';
+    $('always').checked=!!d.cfg.always; $('imp').value=d.cfg.imp?'1':'0'; $('layout').value=d.cfg.layout||''; $('wifi').checked=!!d.cfg.wifi; $('ssid').value=d.cfg.ssid||'';
     $('wnote').textContent=d.cfg.wifi?('Second screen: join Wi-Fi "'+d.cfg.ssid+'" and open http://192.168.4.1'):'Wi-Fi is off.'; cfgLoaded=true; }
   drawMap(d);
 }
