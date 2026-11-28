@@ -104,6 +104,16 @@ volatile bool ethLink = false; // cable link up
 AsyncUDP udp;
 WebServer server(80);
 
+// Live updates: each screen keeps ONE connection open on port 81 and the
+// unit pushes the data once a second (Server-Sent Events). Polling made a
+// new connection twice a second, which ran Windows out of connections
+// after a few days.
+const uint16_t EVENTS_PORT = 81;
+const int MAX_SCREENS = 4;
+WiFiServer eventServer(EVENTS_PORT);
+WiFiClient screens[MAX_SCREENS];
+uint8_t nextScreenSlot = 0;
+
 // ======================================================================
 //  Settings
 // ======================================================================
@@ -333,7 +343,7 @@ void driveBuzzer() {
 // ======================================================================
 void handleRoot() { server.send(200, "text/html", PAGE_HTML); }
 
-void handleData() {
+String buildJson() {
   uint32_t now = millis();
   String j;
   j.reserve(2500);
@@ -378,7 +388,46 @@ void handleData() {
   j += ",\"wifi\":"; j += cfg.wifiOn ? 1 : 0;
   j += ",\"ssid\":\""; j += cfg.ssid; j += '"';
   j += "}}";
-  server.send(200, "application/json", j);
+  return j;
+}
+
+void handleData() { server.send(200, "application/json", buildJson()); }
+
+// Take any new screen connection on port 81 and start an event stream to it.
+void acceptScreens() {
+  WiFiClient c = eventServer.accept();
+  if (!c) return;
+  // Read and ignore the browser's request headers (short wait).
+  uint32_t t0 = millis();
+  while (c.connected() && millis() - t0 < 100) {
+    while (c.available()) c.read();
+    delay(1);
+  }
+  c.setNoDelay(true);
+  c.print("HTTP/1.1 200 OK\r\n"
+          "Content-Type: text/event-stream\r\n"
+          "Cache-Control: no-cache\r\n"
+          "Connection: keep-alive\r\n"
+          "Access-Control-Allow-Origin: *\r\n\r\n"
+          "retry: 2000\n\n");
+  // Use a free slot, or replace the oldest if all are busy.
+  int slot = -1;
+  for (int i = 0; i < MAX_SCREENS; i++) if (!screens[i].connected()) { slot = i; break; }
+  if (slot < 0) { slot = nextScreenSlot; nextScreenSlot = (nextScreenSlot + 1) % MAX_SCREENS; }
+  screens[slot].stop();
+  screens[slot] = c;
+}
+
+// Send the current data to every connected screen.
+void pushScreens() {
+  bool any = false;
+  for (int i = 0; i < MAX_SCREENS; i++) if (screens[i].connected()) any = true;
+  if (!any) return;
+  String msg = "data: " + buildJson() + "\n\n";
+  for (int i = 0; i < MAX_SCREENS; i++) {
+    if (!screens[i].connected()) continue;
+    if (screens[i].print(msg) == 0) screens[i].stop();
+  }
 }
 
 long argOr(const char *name, long dflt, long lo, long hi) {
@@ -520,6 +569,8 @@ void setup() {
   server.on("/mute", handleMute);
   server.on("/rank", handleRank);
   server.begin();
+  eventServer.begin();
+  eventServer.setNoDelay(true);
 
   // short beep so you know it booted
   buzzer(true); delay(150); buzzer(false);
@@ -530,11 +581,13 @@ void setup() {
 void loop() {
   canPoll();
   server.handleClient();
+  acceptScreens();
 
   uint32_t now = millis();
   if (now - lastEvalMs >= 1000) {
     lastEvalMs = now;
     evaluate();
+    pushScreens();
   }
   driveBuzzer();
 

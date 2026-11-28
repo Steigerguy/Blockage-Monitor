@@ -173,9 +173,18 @@ function render(d){
     $('wnote').textContent=d.cfg.wifi?('Second screen: join Wi-Fi "'+d.cfg.ssid+'" and open http://192.168.4.1'):'Wi-Fi is off.'; cfgLoaded=true; }
   drawMap(d);
 }
-function poll(){ fetch('/data',{cache:'no-store'}).then(r=>r.json()).then(d=>{last=Date.now();render(d);})
-  .catch(()=>{}).finally(()=>setTimeout(poll,500)); }
-setInterval(()=>{ if(!last||Date.now()-last>3000){ $('st').textContent='Cab unit not responding';$('st').className='pill bad';
-  alarm=true; mute=0; } },1000);
+// One connection kept open; the cab unit pushes new data every second.
+function listen(){
+  try{
+    const es=new EventSource('http://'+location.hostname+':81/');
+    es.onmessage=e=>{ try{ const d=JSON.parse(e.data); last=Date.now(); render(d); }catch(x){} };
+  }catch(x){}
+}
+listen();
+// Fallback only if the live stream isn't arriving (e.g. port 81 blocked).
+function poll(){ fetch('/data',{cache:'no-store'}).then(r=>r.json()).then(d=>{last=Date.now();render(d);}).catch(()=>{}); }
 poll();
+setInterval(()=>{ if(!last||Date.now()-last>4000) poll(); },3000);
+setInterval(()=>{ if(!last||Date.now()-last>5000){ $('st').textContent='Cab unit not responding';$('st').className='pill bad';
+  alarm=true; mute=0; } },1000);
 </script></body></html>)HTML";
